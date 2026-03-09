@@ -1,0 +1,76 @@
+%% Noise Reduction in Audio Signal using Bandpass Filter + Wavelet Denoising
+clc; clear; close all;
+
+%% User Inputs
+inputFile = 'girl.wav';          % Input noisy audio file
+outputFile = 'girl_cleaned.wav';   % Output cleaned audio file
+applyWavelet = true;             % Set true to apply wavelet denoising
+
+%% 1. Read Audio
+[x, Fs] = audioread(inputFile);
+if size(x,2) > 1
+    x = mean(x, 2); % Convert to mono
+end
+x = x / max(abs(x)); % Normalize
+
+%% 2. Band-pass Filter (Speech Band 300-3400 Hz)
+lowcut = 300; highcut = 3400; order = 5;
+[b, a] = butter(order, [lowcut highcut]/(Fs/2), 'bandpass');
+bp = filtfilt(b, a, x);
+disp('Applied band-pass filter');
+
+%% 3. Wavelet Denoising (Optional)
+if applyWavelet
+    cleaned = wdenoise(bp, 5, 'Wavelet', 'coif5', 'DenoisingMethod', 'UniversalThreshold');
+    cleaned = cleaned(1:length(x)); % Match original length
+    disp('Applied wavelet denoising');
+else
+    cleaned = bp;
+end
+
+%% 4. Normalize and Save
+cleaned = cleaned / max(abs(cleaned));
+audiowrite(outputFile, cleaned, Fs);
+disp(['Saved cleaned audio to: ', outputFile]);
+
+%% 5. Play Audio
+disp('Playing original audio...');
+sound(x, Fs);
+pause(length(x)/Fs + 1);
+
+disp('Playing denoised audio...');
+sound(cleaned, Fs);
+pause(length(cleaned)/Fs + 1);
+
+%% 6. Plot Original vs Denoised
+time = (0:length(x)-1)/Fs;
+figure;
+subplot(2,1,1);
+plot(time, x);
+title('Original Audio'); xlabel('Time [s]'); ylabel('Amplitude');
+
+subplot(2,1,2);
+plot(time, cleaned);
+title('Denoised Audio'); xlabel('Time [s]'); ylabel('Amplitude');
+
+%% 7. Filter Frequency Response
+figure;
+[H, f] = freqz(b, a, 1024, Fs);
+plot(f, abs(H), 'LineWidth', 2);
+grid on;
+title('Band-pass Filter Frequency Response');
+xlabel('Frequency (Hz)'); ylabel('Magnitude');
+
+%% 8. Frequency Spectrum of Original vs Cleaned
+X_fft = abs(fft(x));
+C_fft = abs(fft(cleaned));
+f_axis = (0:length(x)-1)*(Fs/length(x));
+
+figure;
+plot(f_axis, X_fft, 'b'); hold on;
+plot(f_axis, C_fft, 'r'); hold off;
+xlim([0 4000]); % focus on speech range
+grid on;
+title('Frequency Spectrum: Original vs Cleaned');
+xlabel('Frequency (Hz)'); ylabel('Magnitude');
+legend('Original','Cleaned');
